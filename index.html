@@ -1,0 +1,84 @@
+function startTracking() {
+  clearInterval(intervalId);
+
+  const dailyRate = parseFloat(document.getElementById("dailyRate").value);
+  const taxRate = parseFloat(document.getElementById("taxRate").value);
+  const startTimeStr = document.getElementById("startTime").value;
+  const endTimeStr = document.getElementById("endTime").value;
+  let lunchStartStr = document.getElementById("lunchStart").value;
+  const swingStartDateStr = document.getElementById("swingStartDate").value;
+
+  if (isNaN(dailyRate) || isNaN(taxRate) || !startTimeStr || !endTimeStr || !lunchStartStr || !swingStartDateStr) {
+    output.innerText = "Please fill all fields correctly.";
+    return;
+  }
+
+  const baseDate = new Date();
+  baseDate.setHours(0, 0, 0, 0);
+
+  let start = parseTimeToDate(baseDate, startTimeStr);
+  let end = parseTimeToDate(baseDate, endTimeStr);
+  if (end <= start) {
+    end.setDate(end.getDate() + 1);
+  }
+
+  let lunchStart = parseTimeToDate(baseDate, lunchStartStr);
+  if (lunchStart < start || lunchStart > end) {
+    lunchStart = new Date(start.getTime() + (end - start) / 2 - 30 * 60000);
+  }
+  let lunchEnd = new Date(lunchStart.getTime() + 60 * 60000);
+  if (lunchEnd > end) {
+    lunchStart = new Date(end.getTime() - 60 * 60000);
+    lunchEnd = new Date(end.getTime());
+  }
+
+  const totalWorkMinutes = (end - start - (lunchEnd - lunchStart)) / 60000;
+  const ratePerMinute = dailyRate / totalWorkMinutes;
+  const dailyNetEarnings = dailyRate * (1 - taxRate / 100);
+
+  intervalId = setInterval(() => {
+    const now = new Date();
+
+    // Calculamos minutos trabajados hoy hasta ahora
+    let workedMinutes;
+    if (now < start) {
+      workedMinutes = 0;
+    } else if (now > end) {
+      workedMinutes = totalWorkMinutes;
+    } else {
+      let elapsed = diffMinutes(start, now);
+
+      if (now >= lunchStart && now <= lunchEnd) {
+        elapsed -= diffMinutes(lunchStart, now);
+      } else if (now > lunchEnd) {
+        elapsed -= diffMinutes(lunchStart, lunchEnd);
+      }
+      workedMinutes = Math.max(0, elapsed);
+    }
+
+    const netToday = workedMinutes * ratePerMinute * (1 - taxRate / 100);
+
+    // Calcular días trabajados desde inicio del swing (incluye fecha inicio y hoy)
+    const swingStartDate = new Date(swingStartDateStr);
+    swingStartDate.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const diffTime = today - swingStartDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    const swingEarnings = dailyNetEarnings * diffDays;
+
+    const hhmm = formatMinutesToHHMM(workedMinutes);
+    const lunchStartStrFmt = lunchStart.toTimeString().slice(0,5);
+    const lunchEndStrFmt = lunchEnd.toTimeString().slice(0,5);
+
+    output.innerHTML = `
+      <p><strong>You already made 💸</strong></p>
+      <p style="font-size: 2rem;">$${netToday.toFixed(2)}</p>
+      <p class="small-text">Time worked: ${hhmm} hs.</p>
+      <p class="small-text">Lunch break: ${lunchStartStrFmt} - ${lunchEndStrFmt}</p>
+      <p class="small-text"><strong>Swing Earnings:</strong> $${swingEarnings.toFixed(2)}</p>
+    `;
+  }, 1000);
+}
